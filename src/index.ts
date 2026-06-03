@@ -12,7 +12,7 @@ async function pollUpdates() {
 
     if (data.ok && data.result.length > 0) {
       for (const update of data.result) {
-        await handleUpdate(update);
+        handleUpdate(update).catch(err => console.error("Update processing error:", err));
         offset = update.update_id + 1;
       }
     }
