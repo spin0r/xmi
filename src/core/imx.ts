@@ -65,8 +65,11 @@ export async function createGalleryWithName(galleryName: string): Promise<string
     await loginToImx();
   }
 
+  // imx.to rejects special characters like ! / -, so we strip everything except alphanumeric and spaces
+  const sanitizedName = galleryName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
   const formData = new URLSearchParams();
-  formData.append('gallery_name', galleryName);
+  formData.append('gallery_name', sanitizedName);
   formData.append('submit_new_gallery', 'Add');
 
   const response = await axios.post('https://imx.to/user/gallery/add', formData, {

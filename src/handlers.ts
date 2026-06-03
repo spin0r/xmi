@@ -119,8 +119,9 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
 
     if (galleryName) {
       try {
-        await editMessage(chatId, statusMessageId, `🖼 Creating gallery: ${galleryName}...`);
-        galleryId = await createGalleryWithName(galleryName);
+        const sanitizedName = galleryName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+        await editMessage(chatId, statusMessageId, `🖼 Creating gallery: ${sanitizedName}...`);
+        galleryId = await createGalleryWithName(sanitizedName);
       } catch (err: any) {
         await editMessage(chatId, statusMessageId, `⚠️ Failed to pre-create gallery: ${err.message}. Uploading without name.`);
       }
