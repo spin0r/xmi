@@ -1,0 +1,27 @@
+# IMX Uploader API
+
+Welcome to the documentation for the IMX Uploader API.
+
+This project was originally a Telegram bot that extracts direct links from `imx.to`, downloads images from a Pastebin, processes them, and uploads them to `imx.to` with built-in gallery creation support.
+
+It now also exposes an Express API to be used seamlessly outside of Telegram!
+
+## Features
+
+- **Extract imx.to Links:** Extracts the direct `.jpg` URL from `imx.to` viewer pages.
+- **Upload from PB:** Feed it a Pastebin URL and an optional gallery name. It will pre-create the gallery, batch-download, batch-upload (up to 15 parallel limits), and return your direct URLs while preserving order.
+- **Direct File Upload:** Upload a raw image file directly to get an `imx.to` direct URL.
+
+Checkout the [API Reference](/api-reference) page for endpoint details.
+
+
+## Deployment on Render.com
+
+To deploy this project to Render.com and keep it awake 24/7:
+
+1. Connect your GitHub repository in your Render Dashboard.
+2. Render will automatically detect the `render.yaml` file and prompt you to deploy an **Infrastructure as Code** blueprint.
+3. Once created, go to your service's **Environment** tab in Render and fill in the required variables (`TELEGRAM_BOT_TOKEN`, `IMX_API_KEY`, etc.).
+4. **24/7 Uptime:** Point a free uptime monitor (like [UptimeRobot](https://uptimerobot.com/)) to your new `/health` endpoint to keep the Render free-tier service awake permanently.
+
+The API will be available at your Render URL, and these docs will be served at `/docs`!

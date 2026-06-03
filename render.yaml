@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: imx-uploader-bot
+    env: node
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: IMX_API_KEY
+        sync: false
+      - key: IMX_USERNAME
+        sync: false
+      - key: IMX_PASSWORD
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
