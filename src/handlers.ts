@@ -20,6 +20,8 @@ export async function processImxLinks(chatId: number, text: string, messageId: n
       return;
     }
 
+    console.log(`[Chat ${chatId}] Extracting direct URLs from ${imxLinks.length} imx.to links...`);
+
     const statusMsg = await sendMessage(
       chatId,
       `🔄 Extracting direct URLs from ${imxLinks.length} imx.to links...`,
@@ -85,6 +87,7 @@ export async function processImxLinks(chatId: number, text: string, messageId: n
 
 export async function processPbUrl(chatId: number, pbUrl: string, galleryName: string, messageId: number) {
   let statusMessageId: number = 0;
+  console.log(`[Chat ${chatId}] Processing Pastebin URL: ${pbUrl} (Gallery: ${galleryName || 'None'})`);
 
   try {
     const statusMsg = await sendMessage(chatId, "🔄 Fetching image URLs...", messageId);
@@ -99,9 +102,12 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
       : [];
 
     if (imageUrls.length === 0) {
+      console.log(`[Chat ${chatId}] No image URLs found in Pastebin.`);
       await editMessage(chatId, statusMessageId, "❌ No image URLs found in the paste");
       return;
     }
+
+    console.log(`[Chat ${chatId}] Found ${imageUrls.length} images from Pastebin. Starting upload...`);
 
     await editMessage(
       chatId,
@@ -189,6 +195,7 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
 
       const successCount = results.filter((r) => r.imx_url).length;
       const failCount = results.filter((r) => r.error).length;
+      console.log(`[Chat ${chatId}] IMX Upload Progress: ${Math.min(i + BATCH_SIZE, imageUrls.length)}/${imageUrls.length} (Success: ${successCount}, Failed: ${failCount})`);
       let progressText = `✅ Found ${imageUrls.length} images\n\n`;
       progressText += `📤 Uploading to IMX...\n`;
       progressText += `Progress: ${Math.min(i + BATCH_SIZE + 1, imageUrls.length)}/${imageUrls.length}\n`;
@@ -311,6 +318,10 @@ export async function handleUpdate(update: any) {
   const chatId = update.message.chat.id;
   const messageId = update.message.message_id;
   const text = update.message.text || "";
+
+  if (text) {
+    console.log(`[Chat ${chatId}] Received message: ${text.substring(0, 100).replace(/\n/g, ' ')}`);
+  }
 
   if (text === "/start") {
     const welcome =
