@@ -3,6 +3,8 @@ import { sendMessage, editMessage, getFileUrl, sendUploadSummaryToChannel } from
 import { getImxDirectUrl, uploadToImx, createGalleryWithName } from './core/imx';
 import { uploadToPb } from './core/pb';
 
+export const cancelRequests = new Set<number>();
+
 async function downloadFile(url: string): Promise<Buffer> {
   const response = await axios.get(url, { responseType: 'arraybuffer' });
   return Buffer.from(response.data);
@@ -28,6 +30,11 @@ export async function processImxLinks(chatId: number, text: string, messageId: n
     const directUrls: string[] = [];
 
     for (let i = 0; i < imxLinks.length; i++) {
+      if (cancelRequests.has(chatId)) {
+        cancelRequests.delete(chatId);
+        throw new Error("Operation cancelled by user.");
+      }
+
       const imxUrl = imxLinks[i];
       try {
         const directUrl = await getImxDirectUrl(imxUrl);
@@ -153,6 +160,11 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
     }));
 
     for (let i = 0; i < remainingUrls.length; i += BATCH_SIZE) {
+      if (cancelRequests.has(chatId)) {
+        cancelRequests.delete(chatId);
+        throw new Error("Operation cancelled by user.");
+      }
+
       const batch = remainingUrls.slice(i, i + BATCH_SIZE);
 
       const batchResults = await Promise.all(
@@ -200,6 +212,11 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
     const EXTRACT_BATCH_SIZE = 15;
 
     for (let i = 0; i < successResults.length; i += EXTRACT_BATCH_SIZE) {
+      if (cancelRequests.has(chatId)) {
+        cancelRequests.delete(chatId);
+        throw new Error("Operation cancelled by user.");
+      }
+
       const batch = successResults.slice(i, i + EXTRACT_BATCH_SIZE);
 
       const batchUrls = await Promise.all(
@@ -315,11 +332,16 @@ export async function handleUpdate(update: any) {
       `3️⃣ Send imx.to links to get direct URLs\n\n` +
       `<b>Example pb URL:</b>\n` +
       `https://pb.dotrhelvetican.workers.dev/yG2A My Cool Gallery\n\n` +
-      `<b>Example imx.to links:</b>\n` +
-      `https://imx.to/i/6p99b5\n` +
-      `https://imx.to/i/6p99b6\n\n` +
+      `<b>Commands:</b>\n` +
+      `/cancel - Cancel the current running operation\n\n` +
       `All results are saved to pb with 24h expiry.`;
     await sendMessage(chatId, help, messageId);
+    return;
+  }
+
+  if (text === "/cancel") {
+    cancelRequests.add(chatId);
+    await sendMessage(chatId, "🛑 Cancelling operation... Please wait.", messageId);
     return;
   }
 
