@@ -73,7 +73,7 @@ export async function processImxLinks(chatId: number, text: string, messageId: n
     let finalMessage = `✅ <b>Extraction Complete!</b>\n\n`;
     finalMessage += `📊 Extracted: ${directUrls.length}/${imxLinks.length}\n`;
     finalMessage += `🔗 Direct URLs: ${pbResult.url}\n`;
-    finalMessage += `⏰ Expires in 24 hours`;
+    finalMessage += `⏰ Expires in 7 days`;
 
     await editMessage(chatId, statusMessageId, finalMessage);
   } catch (error: any) {
@@ -264,7 +264,7 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
     finalMessage += `🔗 Direct URLs extracted: ${directUrls.length}\n`;
     if (galleryUrl) finalMessage += `🖼 Gallery: ${galleryUrl}\n`;
     finalMessage += `🔗 Direct URLs: ${pbResult.url}\n`;
-    finalMessage += `⏰ Expires in 24 hours`;
+    finalMessage += `⏰ Expires in 7 days`;
 
     await editMessage(chatId, statusMessageId, finalMessage);
 
@@ -346,7 +346,7 @@ export async function handleUpdate(update: any) {
       `https://pb.dotrhelvetican.workers.dev/yG2A My Cool Gallery\n\n` +
       `<b>Commands:</b>\n` +
       `/cancel - Cancel the current running operation\n\n` +
-      `All results are saved to pb with 24h expiry.`;
+      `All results are saved to pb with 7d expiry.`;
     await sendMessage(chatId, help, messageId);
     return;
   }
