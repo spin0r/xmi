@@ -6,9 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/index.js",
-    "build:api": "tsc",
-    "build:docs": "cd docs && npm install && npm run build",
-    "build": "npm run build:api && npm run build:docs",
+    "build": "node --max-old-space-size=512 node_modules/typescript/bin/tsc",
     "dev": "ts-node src/index.ts"
   },
   "keywords": [],

@@ -11,7 +11,7 @@ export const app = express();
 app.use(cors());
 app.use(express.json());
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 app.get('/health', (req, res) => {
   res.json({
@@ -30,6 +30,9 @@ async function downloadFile(url: string): Promise<Buffer> {
   return Buffer.from(response.data);
 }
 
+const MAX_IMAGES = 50;
+const BATCH_SIZE = 3;
+
 // 1. Endpoint to process PB URLs
 app.post('/api/upload-pb', async (req, res) => {
   const { pbUrl, galleryName } = req.body;
@@ -37,114 +40,69 @@ app.post('/api/upload-pb', async (req, res) => {
 
   try {
     const { data } = await axios.get(pbUrl);
-    const imageUrls = typeof data === 'string'
+    let imageUrls = typeof data === 'string'
       ? data.split("\n").filter((line: string) => {
           const trimmed = line.trim();
           return trimmed && trimmed.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i);
         })
       : [];
 
-    if (imageUrls.length === 0) {
-      return res.status(400).json({ error: 'No valid image URLs found in paste' });
-    }
+    if (imageUrls.length === 0) return res.status(400).json({ error: 'No valid image URLs found in paste' });
+    if (imageUrls.length > MAX_IMAGES) imageUrls = imageUrls.slice(0, MAX_IMAGES);
 
     let galleryId: string | null = null;
     if (galleryName) {
-      try {
-        galleryId = await createGalleryWithName(galleryName);
-      } catch (e: any) {
-        console.warn(`Failed to create gallery ${galleryName}:`, e.message);
+      try { galleryId = await createGalleryWithName(galleryName); } catch (e: any) {
+        console.warn(`Failed to create gallery:`, e.message);
       }
     }
 
-    const results: any[] = [];
-    if (imageUrls.length > 0) {
-      try {
-        const firstUrl = imageUrls[0].trim();
-        const imageBuffer = await downloadFile(firstUrl);
-        const imxResult = await uploadToImx(imageBuffer, 'image_1.jpg', galleryId);
-        
-        if (!galleryId && imxResult.gallery_id) {
-          galleryId = imxResult.gallery_id;
+    // Upload sequentially in small batches to avoid memory spike
+    const uploadedUrls: Array<{ index: number; imx_url: string }> = [];
+
+    for (let i = 0; i < imageUrls.length; i += BATCH_SIZE) {
+      const batch = imageUrls.slice(i, i + BATCH_SIZE);
+      for (let j = 0; j < batch.length; j++) {
+        const index = i + j;
+        try {
+          let buf: Buffer | null = await downloadFile(batch[j].trim());
+          const imxResult = await uploadToImx(buf, `image_${index + 1}.jpg`, galleryId);
+          buf = null; // free immediately
+          if (!galleryId && imxResult.gallery_id) galleryId = imxResult.gallery_id;
+          uploadedUrls.push({ index, imx_url: imxResult.image_url });
+        } catch (err: any) {
+          console.error(`Upload failed for index ${index}:`, err.message);
         }
-
-        results.push({
-          index: 0,
-          imx_url: imxResult.image_url,
-          thumbnail: imxResult.thumbnail_url,
-          gallery_id: imxResult.gallery_id,
-        });
-      } catch (err: any) {
-        results.push({ index: 0, error: err.message });
       }
     }
 
-    const BATCH_SIZE = 15;
-    const remainingUrls = imageUrls.slice(1).map((url: string, index: number) => ({
-      url: url.trim(),
-      index: index + 1,
-    }));
-
-    for (let i = 0; i < remainingUrls.length; i += BATCH_SIZE) {
-      const batch = remainingUrls.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map(async ({ url, index }: any) => {
-          try {
-            const imageBuffer = await downloadFile(url);
-            const imxResult = await uploadToImx(imageBuffer, `image_${index + 1}.jpg`, galleryId);
-            return {
-              index,
-              imx_url: imxResult.image_url,
-              thumbnail: imxResult.thumbnail_url,
-              gallery_id: imxResult.gallery_id,
-            };
-          } catch (err: any) {
-            return { index, error: err.message };
-          }
-        })
-      );
-      results.push(...batchResults);
+    // Extract direct URLs sequentially
+    const directUrls: string[] = new Array(uploadedUrls.length).fill(null);
+    for (let i = 0; i < uploadedUrls.length; i += BATCH_SIZE) {
+      const batch = uploadedUrls.slice(i, i + BATCH_SIZE);
+      for (const { index, imx_url } of batch) {
+        try {
+          const url = await getImxDirectUrl(imx_url);
+          directUrls[index] = url || '';
+        } catch (e) {}
+      }
     }
 
-    results.sort((a, b) => a.index - b.index);
-    const successResults = results.filter(r => r.imx_url);
-
-    const directUrls: string[] = [];
-    const EXTRACT_BATCH_SIZE = 15;
-    
-    for (let i = 0; i < successResults.length; i += EXTRACT_BATCH_SIZE) {
-      const batch = successResults.slice(i, i + EXTRACT_BATCH_SIZE);
-      const batchUrls = await Promise.all(
-        batch.map(async (r: any) => {
-          try {
-            const url = await getImxDirectUrl(r.imx_url);
-            return { index: r.index, url };
-          } catch (e) {
-            return { index: r.index, url: null };
-          }
-        })
-      );
-      batchUrls.sort((a, b) => a.index - b.index);
-      batchUrls.forEach(r => {
-        if (r.url) directUrls.push(r.url);
-      });
-    }
-
-    let pbContent = "";
-    directUrls.forEach(url => (pbContent += `${url}\n`));
+    const validUrls = directUrls.filter(Boolean);
     let finalPbUrl = null;
-    
-    if (pbContent) {
-      const pbResult = await uploadToPb(pbContent);
-      finalPbUrl = pbResult.url;
+    if (validUrls.length > 0) {
+      try {
+        const pbResult = await uploadToPb(validUrls.join('\n') + '\n');
+        finalPbUrl = pbResult.url;
+      } catch (e: any) { console.error('PB upload failed:', e.message); }
     }
 
     sendUploadSummaryToChannel({
       galleryName: galleryName || null,
       total: imageUrls.length,
-      uploaded: successResults.length,
-      failed: imageUrls.length - successResults.length,
-      extracted: directUrls.length,
+      uploaded: uploadedUrls.length,
+      failed: imageUrls.length - uploadedUrls.length,
+      extracted: validUrls.length,
       galleryUrl: galleryId ? `https://imx.to/g/${galleryId}` : null,
       pasteUrl: finalPbUrl,
     }).catch(console.error);
@@ -152,11 +110,11 @@ app.post('/api/upload-pb', async (req, res) => {
     res.json({
       success: true,
       total_found: imageUrls.length,
-      successful_uploads: successResults.length,
-      direct_urls_extracted: directUrls.length,
+      successful_uploads: uploadedUrls.length,
+      direct_urls_extracted: validUrls.length,
       gallery_url: galleryId ? `https://imx.to/g/${galleryId}` : null,
       pb_url: finalPbUrl,
-      direct_urls: directUrls,
+      direct_urls: validUrls,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
