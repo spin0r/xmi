@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IMX Uploader API Docs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #222; }
+    h1 { border-bottom: 2px solid #222; padding-bottom: 8px; }
+    h2 { margin-top: 40px; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    pre { background: #f4f4f4; padding: 16px; border-radius: 6px; overflow-x: auto; }
+    .method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-right: 6px; }
+    .post { background: #dbeafe; color: #1e40af; }
+    .get  { background: #dcfce7; color: #166534; }
+  </style>
+</head>
+<body>
+  <h1>IMX Uploader API</h1>
+  <p>Express API for uploading images to <code>imx.to</code>, processing Pastebin URLs, and extracting direct links.</p>
+
+  <h2><span class="method post">POST</span> /api/upload-pb</h2>
+  <p>Downloads images from a pastebin URL, uploads them to imx.to (optionally in a new gallery), and returns direct URLs.</p>
+  <pre>{
+  "pbUrl": "https://pb.example.com/abc",
+  "galleryName": "Optional Gallery Name"  // optional
+}</pre>
+  <p><strong>Response:</strong></p>
+  <pre>{
+  "success": true,
+  "total_found": 15,
+  "successful_uploads": 15,
+  "direct_urls_extracted": 15,
+  "gallery_url": "https://imx.to/g/gallery123",
+  "pb_url": "https://pb.example.com/xyz",
+  "direct_urls": ["https://imx.to/u/a/image1.jpg", "..."]
+}</pre>
+
+  <h2><span class="method post">POST</span> /api/extract-imx</h2>
+  <p>Resolves imx.to viewer links to raw direct image URLs.</p>
+  <pre>{ "links": ["https://imx.to/i/abc", "https://imx.to/i/xyz"] }</pre>
+  <p><strong>Response:</strong></p>
+  <pre>{
+  "success": true,
+  "total": 2,
+  "extracted": 2,
+  "direct_urls": ["https://imx.to/u/a/abc.jpg", "https://imx.to/u/a/xyz.jpg"]
+}</pre>
+
+  <h2><span class="method post">POST</span> /api/upload-file</h2>
+  <p>Upload an image file directly via <code>multipart/form-data</code>. Field name: <code>image</code>.</p>
+  <p><strong>Response:</strong></p>
+  <pre>{
+  "success": true,
+  "image_url": "https://imx.to/u/a/abc.jpg",
+  "thumbnail_url": "https://imx.to/u/t/abc.jpg",
+  "gallery_id": null
+}</pre>
+
+  <h2><span class="method get">GET</span> /health</h2>
+  <p>Returns server status and uptime. Use with an uptime monitor to keep Render free-tier awake.</p>
+  <pre>{ "status": "ok", "uptime": 123.45, "timestamp": "2024-01-01T00:00:00.000Z" }</pre>
+</body>
+</html>

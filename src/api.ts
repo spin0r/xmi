@@ -21,14 +21,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/docs', express.static(path.join(process.cwd(), 'docs/out')));
-
-// Handle trailing slash redirects for Next.js static export
 app.get('/docs', (req, res) => {
-  if (!req.originalUrl.endsWith('/')) {
-    return res.redirect(301, '/docs/');
-  }
-  res.sendFile(path.join(process.cwd(), 'docs/out/index.html'));
+  res.sendFile(path.join(process.cwd(), 'docs/index.html'));
 });
 
 async function downloadFile(url: string): Promise<Buffer> {
