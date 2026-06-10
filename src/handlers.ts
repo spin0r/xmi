@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Archiver } from 'archiver';
+import { Archiver, ZipArchive } from 'archiver';
 import { PassThrough } from 'stream';
 import { sendMessage, editMessage, getFileUrl, sendUploadSummaryToChannel } from './core/telegram';
 import { getImxDirectUrl, uploadToImx, createGalleryWithName } from './core/imx';
@@ -32,9 +32,7 @@ function getExtFromUrl(url: string): string {
 }
 
 function createZipArchive(): Archiver {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const archiverFn = require('archiver') as (format: string, opts?: object) => Archiver;
-  return archiverFn('zip', { zlib: { level: 5 } });
+  return new ZipArchive({ zlib: { level: 5 } });
 }
 
 async function downloadAndZipImages(
