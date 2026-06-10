@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Archiver, ZipOptions } from 'archiver';
+import { Archiver } from 'archiver';
 import { PassThrough } from 'stream';
 import { sendMessage, editMessage, getFileUrl, sendUploadSummaryToChannel } from './core/telegram';
 import { getImxDirectUrl, uploadToImx, createGalleryWithName } from './core/imx';
@@ -10,9 +10,20 @@ import path from 'path';
 
 export const cancelRequests = new Set<number>();
 
-async function downloadFile(url: string): Promise<Buffer> {
-  const response = await axios.get(url, { responseType: 'arraybuffer' });
-  return Buffer.from(response.data);
+async function downloadFile(url: string, retries: number = 3): Promise<Buffer> {
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+      return Buffer.from(response.data);
+    } catch (error: any) {
+      attempt++;
+      if (attempt >= retries) throw error;
+      console.warn(`Retry ${attempt}/${retries} for ${url} due to error: ${error.message}`);
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+    }
+  }
+  throw new Error("Unreachable");
 }
 
 function getExtFromUrl(url: string): string {
@@ -21,9 +32,9 @@ function getExtFromUrl(url: string): string {
 }
 
 function createZipArchive(): Archiver {
-  // archiver module exports a factory function at runtime
-  const archiverFactory = require('archiver');
-  return archiverFactory('zip', { zlib: { level: 5 } });
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const archiverFn = require('archiver') as (format: string, opts?: object) => Archiver;
+  return archiverFn('zip', { zlib: { level: 5 } });
 }
 
 async function downloadAndZipImages(
@@ -43,14 +54,33 @@ async function downloadAndZipImages(
 
     archive.pipe(passThrough);
 
-    for (let i = 0; i < directUrls.length; i++) {
-      try {
-        const imgBuffer = await downloadFile(directUrls[i]);
-        const ext = getExtFromUrl(directUrls[i]);
-        archive.append(imgBuffer, { name: `${i + 1}${ext}` });
-        if (onProgress) onProgress(i + 1, directUrls.length);
-      } catch (err: any) {
-        console.error(`Failed to download image ${i + 1}: ${err.message}`);
+    const BATCH_SIZE = 10;
+    let totalDownloaded = 0;
+
+    for (let i = 0; i < directUrls.length; i += BATCH_SIZE) {
+      const batch = directUrls.slice(i, i + BATCH_SIZE);
+      const batchPromises = batch.map(async (url, idx) => {
+        const absoluteIndex = i + idx;
+        try {
+          const imgBuffer = await downloadFile(url);
+          const ext = getExtFromUrl(url);
+          return { absoluteIndex, buffer: imgBuffer, ext, error: null };
+        } catch (err: any) {
+          console.error(`Failed to download image ${absoluteIndex + 1}: ${err.message}`);
+          return { absoluteIndex, buffer: null, ext: '', error: err };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      // Sort by absolute index to strictly preserve the original order
+      batchResults.sort((a, b) => a.absoluteIndex - b.absoluteIndex);
+
+      for (const res of batchResults) {
+        if (res.buffer) {
+          archive.append(res.buffer, { name: `${res.absoluteIndex + 1}${res.ext}` });
+        }
+        totalDownloaded++;
+        if (onProgress) onProgress(totalDownloaded, directUrls.length);
       }
     }
 
@@ -323,11 +353,11 @@ export async function processPbUrl(chatId: number, pbUrl: string, galleryName: s
           directUrls,
           zipName,
           async (done, total) => {
-            if (done % 5 === 0 || done === total) {
+            if (done % 10 === 0 || done === total) {
               await editMessage(
                 chatId,
                 statusMessageId,
-                `📦 Creating zip...\nDownloading: ${done}/${total}`
+                `📦 Creating zip... Downloading ${done}/${total} images...`
               );
             }
           }
@@ -607,11 +637,11 @@ export async function processZipFile(chatId: number, fileId: string, galleryName
           directUrls,
           zipName,
           async (done, total) => {
-            if (done % 5 === 0 || done === total) {
+            if (done % 10 === 0 || done === total) {
               await editMessage(
                 chatId,
                 statusMessageId,
-                `📦 Creating zip...\nDownloading: ${done}/${total}`
+                `📦 Creating zip... Downloading ${done}/${total} images...`
               );
             }
           }
