@@ -54,15 +54,17 @@ export async function sendUploadSummaryToChannel(params: {
   extracted: number;
   galleryUrl: string | null;
   pasteUrl: string | null;
+  catboxUrl?: string | null;
 }): Promise<void> {
   try {
-    const text = `📤 <b>IMX Upload Complete</b>\n\n` +
+    let text = `📤 <b>IMX Upload Complete</b>\n\n` +
       `📁 Gallery: ${params.galleryName || 'N/A'}\n` +
       `📊 Total: ${params.total} | Uploaded: ${params.uploaded} | Failed: ${params.failed}\n` +
       `🔗 Extracted: ${params.extracted} direct URLs\n` +
       `🖼 Gallery: ${params.galleryUrl || 'N/A'}\n` +
-      `📋 Paste: ${params.pasteUrl || 'N/A'}\n\n` +
-      `⏰ ${new Date().toISOString()}`;
+      `📋 Paste: ${params.pasteUrl || 'N/A'}\n`;
+    if (params.catboxUrl) text += `📦 Zip: ${params.catboxUrl}\n`;
+    text += `\n⏰ ${new Date().toISOString()}`;
 
     await sendMessage(config.TELEGRAM_CHAT_ID, text);
   } catch (error: any) {
